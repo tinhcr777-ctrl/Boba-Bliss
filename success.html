@@ -1,0 +1,4 @@
+{% extends 'base.html' %}{% block title %}Order Received{% endblock %}
+{% block content %}
+<section class="shell success-panel"><span class="big-emoji">💗</span><span class="eyebrow">YAY! THANK YOU</span><h1>Sample order received!</h1><p>Your demo order number is <strong>#{{ order_id }}</strong>.</p><p>Orders are only stored in this classroom project. No real pickup is scheduled.</p><a class="btn primary" href="{{ url_for('menu') }}">Back to menu</a></section>
+{% endblock %}
