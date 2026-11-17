@@ -97,6 +97,19 @@ def create_app(test_config=None):
             db.execute("INSERT INTO app_settings(key,value) VALUES ('drinks_seeded','yes')")
         db.commit()
 
+        # Optional first-run admin account for hosting providers without a shell.
+        # Credentials are configured only as private environment variables.
+        bootstrap_user = os.environ.get("ADMIN_USERNAME", "").strip()
+        bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
+        if bootstrap_user and len(bootstrap_user) >= 3 and len(bootstrap_password) >= 12:
+            existing = db.execute("SELECT id FROM admins WHERE username=?", (bootstrap_user,)).fetchone()
+            if existing is None:
+                db.execute(
+                    "INSERT INTO admins(username,password_hash) VALUES (?,?)",
+                    (bootstrap_user, generate_password_hash(bootstrap_password)),
+                )
+                db.commit()
+
     @app.cli.command("create-admin")
     @click.option("--username", prompt="Admin username")
     @click.password_option(confirmation_prompt=True)
