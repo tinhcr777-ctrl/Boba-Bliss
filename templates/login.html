@@ -1,0 +1,4 @@
+{% extends 'base.html' %}{% block title %}Admin Login{% endblock %}
+{% block content %}
+<section class="shell center-layout"><form class="form-card login-card" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><span class="eyebrow">FOR BOBA BLISS STAFF</span><h1>Welcome back! ♡</h1><p>Log in to manage drinks and sample orders.</p><label>Username<input type="text" name="username" autocomplete="username" required></label><label>Password<input type="password" name="password" autocomplete="current-password" required></label><button type="submit" class="btn primary full">Log in →</button><p class="form-hint">Set up your admin account using the README instructions.</p></form></section>
+{% endblock %}
