@@ -1,5 +1,6 @@
 """Boba Bliss: Flask pickup ordering with SQLite or PostgreSQL."""
 import hmac
+import logging
 import os
 import secrets
 from datetime import datetime, timezone
@@ -137,12 +138,19 @@ def create_app(test_config=None):
             connection.execute("INSERT INTO app_settings(key,value) VALUES ('drinks_seeded','yes')")
             connection.commit()
 
-        # Bootstrap an admin account. Reset an existing password only when
-        # explicitly requested in Render's private environment settings.
+        # Do not log credentials, account names, or password lengths.
         bootstrap_user = os.environ.get("ADMIN_USERNAME", "").strip()
         bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
-        reset_requested = os.environ.get("ADMIN_RESET_PASSWORD", "").lower() == "yes"
-        if bootstrap_user and len(bootstrap_user) >= 3 and len(bootstrap_password) >= 12:
+        reset_requested = os.environ.get("ADMIN_RESET_PASSWORD", "").strip().lower() == "yes"
+        if not bootstrap_user:
+            app.logger.warning("Admin setup: ADMIN_USERNAME is missing")
+        elif len(bootstrap_user) < 3:
+            app.logger.warning("Admin setup: username does not meet minimum length")
+        elif not bootstrap_password:
+            app.logger.warning("Admin setup: ADMIN_PASSWORD is missing")
+        elif len(bootstrap_password) < 12:
+            app.logger.warning("Admin setup: ADMIN_PASSWORD must be at least 12 characters")
+        else:
             existing = connection.execute("SELECT id FROM admins WHERE username=?", (bootstrap_user,)).fetchone()
             if existing is None:
                 connection.execute(
@@ -150,12 +158,16 @@ def create_app(test_config=None):
                     (bootstrap_user, generate_password_hash(bootstrap_password)),
                 )
                 connection.commit()
+                app.logger.warning("Admin setup: new account created")
             elif reset_requested:
                 connection.execute(
                     "UPDATE admins SET password_hash=? WHERE id=?",
                     (generate_password_hash(bootstrap_password), existing["id"]),
                 )
                 connection.commit()
+                app.logger.warning("Admin setup: existing account password reset")
+            else:
+                app.logger.warning("Admin setup: account already exists; reset flag not enabled")
 
     @app.cli.command("create-admin")
     @click.option("--username", prompt="Admin username")
