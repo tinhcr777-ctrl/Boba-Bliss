@@ -1,16 +1,17 @@
-"""Boba Bliss: a small Flask + SQLite pickup-ordering website."""
+"""Boba Bliss: Flask pickup ordering with SQLite or PostgreSQL."""
 import hmac
 import os
 import secrets
-import sqlite3
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 
 import click
 from flask import (
-    Flask, abort, flash, g, redirect, render_template, request, session, url_for
+    Flask, abort, flash, redirect, render_template, request, session, url_for
 )
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -30,85 +31,123 @@ SEED_DRINKS = [
 
 def create_app(test_config=None):
     app = Flask(__name__)
+    database_url = os.environ.get("DATABASE_URL", "")
+    if database_url.startswith("postgres://"):
+        database_url = "postgresql://" + database_url[len("postgres://"):]
+    sqlite_path = os.environ.get("DATABASE_PATH") or str(BASE_DIR / "boba_bliss.db")
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY") or secrets.token_hex(32),
-        DATABASE=os.environ.get("DATABASE_PATH") or str(BASE_DIR / "boba_bliss.db"),
+        DATABASE=sqlite_path,
+        SQLALCHEMY_DATABASE_URI=database_url or "sqlite:///" + sqlite_path,
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         MAX_CONTENT_LENGTH=1024 * 1024,
     )
     if test_config:
         app.config.update(test_config)
+        if "DATABASE" in test_config and "SQLALCHEMY_DATABASE_URI" not in test_config:
+            app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + test_config["DATABASE"]
+
+    orm = SQLAlchemy(app)
+
+    class AppSetting(orm.Model):
+        __tablename__ = "app_settings"
+        key = orm.Column(orm.Text, primary_key=True)
+        value = orm.Column(orm.Text, nullable=False)
+
+    class Admin(orm.Model):
+        __tablename__ = "admins"
+        id = orm.Column(orm.Integer, primary_key=True)
+        username = orm.Column(orm.Text, nullable=False, unique=True)
+        password_hash = orm.Column(orm.Text, nullable=False)
+
+    class Drink(orm.Model):
+        __tablename__ = "drinks"
+        id = orm.Column(orm.Integer, primary_key=True)
+        name = orm.Column(orm.Text, nullable=False)
+        description = orm.Column(orm.Text, nullable=False)
+        price_cents = orm.Column(orm.Integer, nullable=False)
+        emoji = orm.Column(orm.Text, nullable=False, default="🧋")
+        sort_order = orm.Column(orm.Integer, nullable=False, default=0)
+        available = orm.Column(orm.Integer, nullable=False, default=1)
+
+    class Order(orm.Model):
+        __tablename__ = "orders"
+        id = orm.Column(orm.Integer, primary_key=True)
+        customer_name = orm.Column(orm.Text, nullable=False)
+        phone = orm.Column(orm.Text, nullable=False)
+        drink_name = orm.Column(orm.Text, nullable=False)
+        size = orm.Column(orm.Text, nullable=False)
+        sweetness = orm.Column(orm.Text, nullable=False)
+        quantity = orm.Column(orm.Integer, nullable=False)
+        price_cents = orm.Column(orm.Integer, nullable=False)
+        total_cents = orm.Column(orm.Integer, nullable=False)
+        notes = orm.Column(orm.Text, nullable=False, default="")
+        status = orm.Column(orm.Text, nullable=False, default="New")
+        created_at = orm.Column(orm.Text, nullable=False)
+
+    class QueryResult:
+        def __init__(self, result):
+            self.result = result
+            self.rowcount = result.rowcount
+
+        def fetchone(self):
+            return self.result.mappings().fetchone()
+
+        def fetchall(self):
+            return self.result.mappings().fetchall()
+
+    class DatabaseAdapter:
+        """Keep beginner-friendly SQL calls working on both database engines."""
+        def execute(self, query, values=()):
+            params = {}
+            for index, value in enumerate(values):
+                marker = f"arg{index}"
+                query = query.replace("?", ":" + marker, 1)
+                params[marker] = value
+            return QueryResult(orm.session.execute(text(query), params))
+
+        def executemany(self, query, rows):
+            rows = list(rows)
+            if not rows:
+                return
+            count = len(rows[0])
+            for index in range(count):
+                query = query.replace("?", f":arg{index}", 1)
+            orm.session.execute(
+                text(query),
+                [{f"arg{i}": value for i, value in enumerate(row)} for row in rows],
+            )
+
+        def commit(self):
+            orm.session.commit()
 
     def get_db():
-        if "db" not in g:
-            g.db = sqlite3.connect(app.config["DATABASE"])
-            g.db.row_factory = sqlite3.Row
-            g.db.execute("PRAGMA foreign_keys = ON")
-        return g.db
-
-    @app.teardown_appcontext
-    def close_db(error=None):
-        connection = g.pop("db", None)
-        if connection is not None:
-            connection.close()
+        return DatabaseAdapter()
 
     def init_db():
-        db = get_db()
-        db.executescript("""
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS admins (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS drinks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT NOT NULL,
-                price_cents INTEGER NOT NULL CHECK(price_cents > 0),
-                emoji TEXT NOT NULL DEFAULT '🧋',
-                sort_order INTEGER NOT NULL DEFAULT 0,
-                available INTEGER NOT NULL DEFAULT 1
-            );
-            CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                customer_name TEXT NOT NULL,
-                phone TEXT NOT NULL,
-                drink_name TEXT NOT NULL,
-                size TEXT NOT NULL,
-                sweetness TEXT NOT NULL,
-                quantity INTEGER NOT NULL,
-                price_cents INTEGER NOT NULL,
-                total_cents INTEGER NOT NULL,
-                notes TEXT NOT NULL DEFAULT '',
-                status TEXT NOT NULL DEFAULT 'New',
-                created_at TEXT NOT NULL
-            );
-        """)
-        if db.execute("SELECT value FROM app_settings WHERE key='drinks_seeded'").fetchone() is None:
-            db.executemany(
+        orm.create_all()
+        connection = get_db()
+        if connection.execute("SELECT value FROM app_settings WHERE key='drinks_seeded'").fetchone() is None:
+            connection.executemany(
                 "INSERT INTO drinks(name,description,price_cents,emoji,sort_order) VALUES (?,?,?,?,?)",
                 SEED_DRINKS,
             )
-            db.execute("INSERT INTO app_settings(key,value) VALUES ('drinks_seeded','yes')")
-        db.commit()
+            connection.execute("INSERT INTO app_settings(key,value) VALUES ('drinks_seeded','yes')")
+            connection.commit()
 
-        # Optional first-run admin account for hosting providers without a shell.
-        # Credentials are configured only as private environment variables.
+        # Bootstrap the first admin only. Never overwrite an existing password.
         bootstrap_user = os.environ.get("ADMIN_USERNAME", "").strip()
         bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
         if bootstrap_user and len(bootstrap_user) >= 3 and len(bootstrap_password) >= 12:
-            existing = db.execute("SELECT id FROM admins WHERE username=?", (bootstrap_user,)).fetchone()
+            existing = connection.execute("SELECT id FROM admins WHERE username=?", (bootstrap_user,)).fetchone()
             if existing is None:
-                db.execute(
+                connection.execute(
                     "INSERT INTO admins(username,password_hash) VALUES (?,?)",
                     (bootstrap_user, generate_password_hash(bootstrap_password)),
                 )
-                db.commit()
+                connection.commit()
 
     @app.cli.command("create-admin")
     @click.option("--username", prompt="Admin username")
@@ -205,12 +244,13 @@ def create_app(test_config=None):
                 """INSERT INTO orders
                 (customer_name, phone, drink_name, size, sweetness, quantity,
                  price_cents, total_cents, notes, status, created_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING id""",
                 (name, phone, drink["name"], size, sweetness, qty,
                  unit_price, total, notes, "New", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")),
             )
+            new_order_id = cursor.fetchone()["id"]
             db.commit()
-            return redirect(url_for("order_success", order_id=cursor.lastrowid))
+            return redirect(url_for("order_success", order_id=new_order_id))
         return render_template("order.html", drink=drink, sizes=SIZES, sweetness=SWEETNESS)
 
     @app.get("/order-success/<int:order_id>")
