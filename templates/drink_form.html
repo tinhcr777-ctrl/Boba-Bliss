@@ -1,0 +1,11 @@
+{% extends 'base.html' %}{% block title %}{{ 'Edit Drink' if drink else 'Add Drink' }}{% endblock %}
+{% block content %}
+<section class="shell center-layout"><form class="form-card edit-card" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><span class="eyebrow">ADMIN EDITOR</span><h1>{{ 'Edit drink' if drink else 'Add a new drink' }} ♡</h1>
+<label>Drink name<input name="name" required maxlength="80" minlength="2" value="{{ request.form.get('name', drink['name'] if drink else '') }}" placeholder="e.g. Taro Cloud"></label>
+<label>Description<textarea name="description" rows="3" maxlength="250" placeholder="What's in this drink?">{{ request.form.get('description', drink['description'] if drink else '') }}</textarea></label>
+<div class="two-col"><label>Price ($)<input type="number" step="0.01" min="0.50" max="50" name="price" required value="{{ request.form.get('price', '%.2f' % (drink['price_cents'] / 100) if drink else '') }}"></label><label>Display order<input type="number" name="sort_order" min="0" max="999" value="{{ request.form.get('sort_order', drink['sort_order'] if drink else 10) }}"></label></div>
+<label>Drink emoji<select name="emoji">{% for emoji in emojis %}<option value="{{ emoji }}" {% if emoji == (request.form.get('emoji', drink['emoji'] if drink else '🧋')) %}selected{% endif %}>{{ emoji }}</option>{% endfor %}</select></label>
+<label class="checkline"><input type="checkbox" name="available" {% if request.method == 'POST' and request.form.get('available') or request.method != 'POST' and (not drink or drink['available']) %}checked{% endif %}> Show on public menu</label>
+<div class="button-row"><button type="submit" class="btn primary">Save drink ♡</button><a class="btn secondary" href="{{ url_for('dashboard') }}">Cancel</a></div>
+</form></section>
+{% endblock %}
