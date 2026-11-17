@@ -137,15 +137,23 @@ def create_app(test_config=None):
             connection.execute("INSERT INTO app_settings(key,value) VALUES ('drinks_seeded','yes')")
             connection.commit()
 
-        # Bootstrap the first admin only. Never overwrite an existing password.
+        # Bootstrap an admin account. Reset an existing password only when
+        # explicitly requested in Render's private environment settings.
         bootstrap_user = os.environ.get("ADMIN_USERNAME", "").strip()
         bootstrap_password = os.environ.get("ADMIN_PASSWORD", "")
+        reset_requested = os.environ.get("ADMIN_RESET_PASSWORD", "").lower() == "yes"
         if bootstrap_user and len(bootstrap_user) >= 3 and len(bootstrap_password) >= 12:
             existing = connection.execute("SELECT id FROM admins WHERE username=?", (bootstrap_user,)).fetchone()
             if existing is None:
                 connection.execute(
                     "INSERT INTO admins(username,password_hash) VALUES (?,?)",
                     (bootstrap_user, generate_password_hash(bootstrap_password)),
+                )
+                connection.commit()
+            elif reset_requested:
+                connection.execute(
+                    "UPDATE admins SET password_hash=? WHERE id=?",
+                    (generate_password_hash(bootstrap_password), existing["id"]),
                 )
                 connection.commit()
 
