@@ -131,8 +131,8 @@ def create_app(test_config=None):
         connection = get_db()
         if connection.execute("SELECT value FROM app_settings WHERE key='drinks_seeded'").fetchone() is None:
             connection.executemany(
-                "INSERT INTO drinks(name,description,price_cents,emoji,sort_order) VALUES (?,?,?,?,?)",
-                SEED_DRINKS,
+                "INSERT INTO drinks(name,description,price_cents,emoji,sort_order,available) VALUES (?,?,?,?,?,?)",
+                [(*row, 1) for row in SEED_DRINKS],
             )
             connection.execute("INSERT INTO app_settings(key,value) VALUES ('drinks_seeded','yes')")
             connection.commit()
