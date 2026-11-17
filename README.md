@@ -1,6 +1,6 @@
 # 🧋 Boba Bliss — Cute & Pink Full-Stack Web App
 
-A beginner-friendly boba pickup order manager built with **Python Flask, SQLite, HTML, CSS and JavaScript**. It is a fictional store created for a school assignment.
+A beginner-friendly boba pickup order manager built with **Python Flask, SQLAlchemy, SQLite/PostgreSQL, HTML, CSS and JavaScript**. It is a fictional store created for a school assignment.
 
 ## Features
 
@@ -10,7 +10,7 @@ A beginner-friendly boba pickup order manager built with **Python Flask, SQLite,
 - **Drink CRUD:** Create, read, update and delete drinks; change price, display order and availability
 - **Order management:** View orders and change their statuses (New, Preparing, Ready, Completed, Cancelled)
 - **Responsive:** Mobile menu and layout, tablet-friendly grids, desktop dashboard
-- **Database:** SQLite stores admins, drinks and orders
+- **Database:** SQLite locally or PostgreSQL on Render stores admins, drinks and orders
 - **Basic protections:** CSRF checks on forms, parameterized SQL queries, password hashing and server-side validation
 
 ## 1. Open the project in VS Code
@@ -100,3 +100,15 @@ Another option is a Flask host with a **persistent disk/volume**. Set `DATABASE_
 **Live application link:** [Paste your deployed website link here]
 
 **Summary:** Boba Bliss is a beginner-friendly full-stack website for a fictional bubble tea shop. Visitors can browse drinks and place sample pickup orders by selecting a size, sweetness level and quantity. An administrator can securely log in, add/edit/delete drinks, and update pickup order statuses. The site also includes a public preview page, sample contact information, and responsive design for phones, tablets and computers. It uses Python Flask for the backend, SQLite for the database, and HTML, CSS, and JavaScript for the frontend.
+
+
+## Render PostgreSQL connection (production)
+
+1. In the Render **Postgres** dashboard, copy the **Internal Database URL** using the Connect menu.
+2. In the Render **Web Service** dashboard, open **Environment** and add a private `DATABASE_URL` variable containing that URL. Do not paste it into GitHub or screenshots.
+3. Add a long random `SECRET_KEY` to the web service Environment.
+4. For the **first admin account**, set `ADMIN_USERNAME` and `ADMIN_PASSWORD` (at least 12 characters) privately on Render, then redeploy. The app creates an account if it doesn't exist; it will not replace existing credentials.
+5. Render will automatically create the database tables and initial sample drinks on first connection. A new PostgreSQL database starts with empty orders and fresh menu data; existing SQLite data is **not migrated automatically**.
+6. Test the menu, admin login, and a **sample** pickup order, then test again after a redeploy.
+
+The database uses Flask-SQLAlchemy and psycopg; local development continues to use a SQLite file when `DATABASE_URL` is absent. Render's free PostgreSQL databases expire; check your database expiry date in its dashboard.
