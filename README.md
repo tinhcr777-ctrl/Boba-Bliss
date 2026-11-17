@@ -112,3 +112,7 @@ Another option is a Flask host with a **persistent disk/volume**. Set `DATABASE_
 6. Test the menu, admin login, and a **sample** pickup order, then test again after a redeploy.
 
 The database uses Flask-SQLAlchemy and psycopg; local development continues to use a SQLite file when `DATABASE_URL` is absent. Render's free PostgreSQL databases expire; check your database expiry date in its dashboard.
+
+### Fixing an incorrect admin password on Render
+
+Set `ADMIN_USERNAME` to the existing account name, set `ADMIN_PASSWORD` to a new private password with at least 12 characters, and temporarily add `ADMIN_RESET_PASSWORD=yes` in the web service Environment. Save and deploy. After login succeeds, remove `ADMIN_RESET_PASSWORD` (or set it to `no`) so later starts cannot overwrite the password. Do **not** share any passwords in chat, screenshots, or GitHub. Changing `ADMIN_PASSWORD` alone does not reset an existing account.
