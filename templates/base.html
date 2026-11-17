@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f9dce7">
+  <meta name="description" content="Boba Bliss — sweet drinks, happy days.">
+  <title>{% block title %}Boba Bliss{% endblock %} | Boba Bliss</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav shell" aria-label="Main navigation">
+      <a class="logo" href="{{ url_for('home') }}">🧋 <span>Boba Bliss</span></a>
+      <button class="menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <div class="nav-links" id="nav-links">
+        <a href="{{ url_for('home') }}">Home</a>
+        <a href="{{ url_for('menu') }}">Menu</a>
+        <a href="{{ url_for('contact') }}">Contact</a>
+        {% if session.get('admin_id') %}
+          <a href="{{ url_for('dashboard') }}">Dashboard</a>
+          <form method="post" action="{{ url_for('logout') }}" class="nav-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="nav-text-button">Log out</button>
+          </form>
+        {% else %}
+          <a href="{{ url_for('login') }}">Admin login</a>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+  <main>
+    <div class="shell flash-wrap">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}<div class="alert alert-{{ category }}" role="status">{{ message }}</div>{% endfor %}
+      {% endwith %}
+    </div>
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer">
+    <div class="shell footer-inner">
+      <div><strong>🧋 Boba Bliss</strong><p>Made with love and extra pearls ♡</p></div>
+      <div><a href="{{ url_for('contact') }}">Contact us</a><span> • </span><a href="{{ url_for('menu') }}">Browse drinks</a></div>
+    </div>
+    <p class="disclaimer shell">Student demo project — not a real boba shop. Please do not submit real personal information.</p>
+  </footer>
+  <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+</body>
+</html>
