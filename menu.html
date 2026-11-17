@@ -1,5 +1,0 @@
-{% extends 'base.html' %}{% block title %}Our Menu{% endblock %}
-{% block content %}
-<section class="page-banner shell"><span class="eyebrow">MADE FOR YOUR SWEET TOOTH</span><h1>Our boba menu 🧋</h1><p>Pick a favorite and customize your sample pickup order. Large size is +$1.00.</p></section>
-<section class="section shell">{% if drinks %}<div class="drink-grid">{% for drink in drinks %}{% include '_drink_card.html' %}{% endfor %}</div>{% else %}<div class="empty">No drinks right now. Check back soon! ♡</div>{% endif %}</section>
-{% endblock %}
